@@ -44,8 +44,8 @@ app.use("/documents", express.static(config.documents));
 //   }
 // );
 
-// app.use('/auth', limitedAccess, require('./routes/auth'));
-// app.use('/kursus', require('./routes/kursus'));
+app.use('/auth', limitedAccess, require('./routes/auth'));
+app.use('/kegiatan', require('./routes/kegiatan'));
 // app.use('/kursus-saya', require('./routes/kursus-saya'));
 // app.use('/webinar', require('./routes/webinar'));
 // app.use('/webinar-saya', require('./routes/webinar-saya'));

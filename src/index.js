@@ -13,7 +13,7 @@ process.on("unhandledRejection", (reason, p) => {
   logger.error("Unhandled Rejection at: Promise %s %s", p, reason);
 });
 
-sequelize.sync({ alter: true }).then(() => {
+sequelize.sync({}).then(() => {
   server.on("listening", () =>
     logger.info("server started on %s:%d", config.host, config.port)
   );

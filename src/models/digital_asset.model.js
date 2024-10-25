@@ -1,28 +1,33 @@
 module.exports = function (sequelize, DataTypes) {
-  const Users = sequelize.define(
-    "users",
+  const DigitalAssets = sequelize.define(
+    "digital_assets",
     {
       id: {
         allowNull: false,
-        primaryKey: true,
         autoIncrement: true,
+        primaryKey: true,
         type: DataTypes.INTEGER,
       },
-      nama: {
-        allowNull: false,
-        type: DataTypes.STRING,
-      },
-      email: {
-        allowNull: false,
-        type: DataTypes.STRING,
-      },
-      no_telp: {
+      path: {
         allowNull: true,
         type: DataTypes.STRING,
       },
-      password: {
-        allowNull: false,
+      filename: {
+        allowNull: true,
         type: DataTypes.STRING,
+      },
+      url: {
+        allowNull: true,
+        type: DataTypes.STRING,
+      },
+      user_id: {
+        allowNull: true,
+        foreignKey: true,
+        type: DataTypes.INTEGER,
+        references: {
+          model: "users",
+          key: "id",
+        },
       },
       createdAt: {
         allowNull: false,
@@ -33,15 +38,17 @@ module.exports = function (sequelize, DataTypes) {
         type: DataTypes.DATE,
       },
     },
-    { timestamps: true, underscored: true }
+    {
+      timestamps: true,
+      underscored: true,
+    }
   );
 
-  Users.associate = function (models) {
-    Users.hasMany(models.digital_assets, {
+  DigitalAssets.associate = function (models) {
+    DigitalAssets.belongsTo(models.users, {
       foreignKey: "user_id",
-      onDelete: "CASCADE",
     });
   };
 
-  return Users;
+  return DigitalAssets;
 };
