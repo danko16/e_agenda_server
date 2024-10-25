@@ -1,11 +1,11 @@
 const config = {};
 
 config.email = {
-  host: 'smtp-relay.sendinblue.com',
+  host: 'smtp.mailersend.net',
   port: 587,
   auth: {
-    user: 'danangekoyudanto1995@gmail.com',
-    pass: 'acOVFbxy8hY7XjS1',
+    user: 'MS_wMqv7W@trial-3z0vklo2yv147qrx.mlsender.net',
+    pass: 'Mlfz1sPvO0iZWK1U',
   },
 };
 

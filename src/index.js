@@ -19,5 +19,3 @@ sequelize.sync({}).then(() => {
   );
   server.listen(config.port);
 });
-// server.on('listening', () => logger.info('server started on %s:%d', config.host, config.port));
-// server.listen(config.port);

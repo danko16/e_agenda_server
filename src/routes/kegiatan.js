@@ -1,15 +1,12 @@
 const express = require("express");
-const sequelize = require("sequelize");
+const { sequelize, Sequelize } = require("../models");
 const { query, body, validationResult } = require("express-validator");
-const {
-  kegiatan: Kegiatan,
-  digital_assets: Asset,
-} = require("../models");
+const { kegiatan: Kegiatan, digital_assets: Asset } = require("../models");
 const {
   auth: { isAllow },
   response,
 } = require("../utils");
-const Op = sequelize.Op;
+const Op = Sequelize.Op;
 
 const router = express.Router();
 
@@ -44,7 +41,7 @@ router.get(
         .status(200)
         .json(response(200, "Berhasil Mendapatkan Kegiatan", kegiatan));
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return res.status(500).json(response(500, "Internal Server Error!"));
     }
   }

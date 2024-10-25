@@ -1,8 +1,8 @@
 const config = require('./config.global');
 config.documents = 'public/documents';
 config.uploads = 'public/uploads';
-config.serverDomain = 'https://api.creativehustle.id';
-config.clientDomain = 'https://creativehustle.id';
+config.serverDomain = 'https://api.e-agenda.io';
+config.clientDomain = 'https://api.e-agenda.io';
 config.host = 'http://localhost';
 config.port = 3000;
 config.googleId = process.env.PROD_GOOGLE_ID;

@@ -1,10 +1,10 @@
 const express = require("express");
 const sequelize = require("sequelize");
 const multer = require("multer");
-// const fs = require("fs");
-// const sharp = require("sharp");
+const fs = require("fs");
+const sharp = require("sharp");
 const { body, query, validationResult } = require("express-validator");
-const passport = require("passport");
+const passport = require("../utils/passport");
 const url = require("url");
 const config = require("../../config");
 const {
@@ -16,12 +16,11 @@ const {
     getPayload,
   },
   auth: { isAllow },
-  // emails: { sendActivationEmail },
   response,
 } = require("../utils");
 const { users: User, digital_assets: Asset } = require("../models");
 const { getTokenReset, checkTokenReset } = require("../utils/token");
-// const { sendPasswordReset } = require("../utils/emails");
+const { sendPasswordReset, sendActivationEmail } = require("../utils/emails");
 const Op = sequelize.Op;
 
 const router = express.Router();
@@ -103,6 +102,7 @@ router.post(
           email,
           no_telp,
           password: encrypt(password),
+          provider: "local",
         })
       );
 
@@ -111,9 +111,13 @@ router.post(
         for: "register",
       });
 
-      if (!registerToken) {
-        return res.status(500).json(response(500, "Internal Server Error!"));
-      }
+      const tokenUrl = `${config.serverDomain}/auth/confirm-email?token=${registerToken}&email=${user.email}`;
+
+      sendActivationEmail({
+        email: user.email,
+        name: user.nama,
+        tokenUrl,
+      });
 
       const token = await getToken({ uid: user.id });
       let getExpToken = await getPayload(token.pure);
@@ -171,9 +175,9 @@ router.post(
         ? user.digital_assets[0].dataValues.url
         : null;
 
-      // if (user.provider === "google") {
-      //   return res.status(400).json(response(400, "Login dengan Google"));
-      // }
+      if (user.provider === "google") {
+        return res.status(400).json(response(400, "Login dengan Google"));
+      }
 
       const compare = encrypt(password) === user.password;
       if (!compare) {
@@ -199,7 +203,7 @@ router.post(
 
       return res.status(200).json(response(200, "Login berhasil", payload));
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return res
         .status(500)
         .json(response(500, "Internal Server Error!", error));
@@ -250,7 +254,13 @@ router.post(
 
       return res
         .status(200)
-        .json(response(200, "Silahkan check email anda untuk reset password", tokenUrl));
+        .json(
+          response(
+            200,
+            "Silahkan check email anda untuk reset password",
+            tokenUrl
+          )
+        );
     } catch (error) {
       return res
         .status(500)
@@ -296,8 +306,8 @@ router.post(
       await user.update({ password: encrypt(new_password) });
 
       let avatar = user.digital_assets.length
-      ? user.digital_assets[0].dataValues.url
-      : null;
+        ? user.digital_assets[0].dataValues.url
+        : null;
 
       const loginToken = await getToken({
         uid: user.id,
@@ -320,7 +330,7 @@ router.post(
         .status(200)
         .json(response(200, "Reset password berhasil", payload));
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return res
         .status(500)
         .json(response(500, "Internal Server Error!", error));
@@ -328,249 +338,149 @@ router.post(
   }
 );
 
-// router.patch(
-//   "/profile",
-//   isAllow,
-//   [
-//     query("name", "name should be present").exists(),
-//     query("phone", "phone number should be present").exists(),
-//   ],
-//   async function (req, res) {
-//     const errors = validationResult(req);
-//     if (!errors.isEmpty()) {
-//       return res.status(422).json(response(422, errors.array()));
-//     }
+router.patch("/profile", isAllow, async function (req, res) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(422).json(response(422, errors.array()));
+  }
 
-//     const { user } = res.locals;
+  user = await User.findOne({
+    where: { id: res.locals.user.id },
+    include: {
+      model: Asset,
+      required: false,
+    },
+  });
 
-//     const { name, phone } = req.query;
+  if (!user) {
+    return res.status(400).json(response(400, "User tidak ditemukan!"));
+  }
 
-//     let isPhoneExist = false;
-//     if (user.type === "student") {
-//       const isPhone = await Student.findOne({
-//         where: {
-//           phone,
-//           id: {
-//             [Op.not]: user.id,
-//           },
-//         },
-//       });
-//       if (isPhone) {
-//         isPhoneExist = true;
-//       }
-//     } else if (user.type === "teacher") {
-//       const isPhone = await Teacher.findOne({
-//         where: {
-//           phone,
-//           id: {
-//             [Op.not]: user.id,
-//           },
-//         },
-//       });
-//       if (isPhone) {
-//         isPhoneExist = true;
-//       }
-//     }
+  upload(req, res, async function (error) {
+    try {
+      if (error instanceof multer.MulterError) {
+        return res
+          .status(500)
+          .json(response(500, "Internal Server Error!", error));
+      } else if (error) {
+        return res.status(500).json(response(500, "Unkonwn Error!", error));
+      }
+      const { file, body } = req;
+      let servePath;
+      let filePath;
+      let urlPath;
 
-//     if (isPhoneExist) {
-//       return res
-//         .status(400)
-//         .json(response(400, "Nomor Telephone sudah terdaftar"));
-//     }
-//     upload(req, res, async function (error) {
-//       if (error instanceof multer.MulterError) {
-//         return res
-//           .status(500)
-//           .json(response(500, "Internal Server Error!", error));
-//       } else if (error) {
-//         return res.status(500).json(response(500, "Unkonwn Error!", error));
-//       }
-//       try {
-//         const { file } = req;
-//         let servePath;
-//         let filePath;
-//         let urlPath;
+      if (body.nama) {
+        await user.update({ nama: body.nama });
+      }
 
-//         if (file) {
-//           servePath = `uploads/${file.filename}`;
-//           filePath = `${file.destination}/${file.filename}`;
-//           urlPath = `${config.serverDomain}/${servePath}`;
+      if (body.no_telp) {
+        await user.update({ no_telp: body.no_telp });
+      }
 
-//           const sharpFile = await sharp(filePath).toBuffer();
+      if (body.password) {
+        await user.update({ password: encrypt(new_password) });
+      }
 
-//           sharp(sharpFile)
-//             .resize(245, 245)
-//             .toFile(filePath, (err, info) => {});
-//         }
+      if (file) {
+        servePath = `uploads/${file.filename}`;
+        filePath = `${file.destination}/${file.filename}`;
+        urlPath = `${config.serverDomain}/${servePath}`;
 
-//         let payload;
-//         if (user.type === "student") {
-//           if (file) {
-//             const asset = await Asset.findOne({
-//               where: { student_id: user.id, type: "avatar" },
-//               as: "student_assets",
-//             });
+        const sharpFile = await sharp(filePath).toBuffer();
 
-//             if (asset) {
-//               if (asset.path) {
-//                 fs.unlinkSync(asset.path);
-//               }
-//               await asset.update({
-//                 url: urlPath,
-//                 path: filePath,
-//                 filename: file.filename,
-//               });
-//             } else {
-//               await Asset.create({
-//                 url: urlPath,
-//                 path: filePath,
-//                 filename: file.filename,
-//                 type: "avatar",
-//                 student_id: user.id,
-//               });
-//             }
-//           }
+        sharp(sharpFile)
+          .resize(245, 245)
+          .toFile(filePath, (err, info) => {});
+      }
 
-//           await Student.update(
-//             {
-//               full_name: name,
-//               phone: phone.trim(),
-//             },
-//             { where: { id: user.id } }
-//           );
+      if (file) {
+        const asset = await Asset.findOne({
+          where: { user_id: user.id },
+        });
 
-//           payload = await Student.findOne({
-//             where: {
-//               id: user.id,
-//             },
-//             include: {
-//               model: Asset,
-//               as: "student_assets",
-//               where: {
-//                 type: "avatar",
-//               },
-//               required: false,
-//             },
-//           });
+        if (asset) {
+          if (asset.path) {
+            fs.unlinkSync(asset.path);
+          }
+          await asset.update({
+            url: urlPath,
+            path: filePath,
+            filename: file.filename,
+          });
+        } else {
+          await Asset.create({
+            url: urlPath,
+            path: filePath,
+            filename: file.filename,
+            user_id: user.id,
+          });
+        }
+      }
 
-//           payload = Object.freeze({
-//             id: payload.id,
-//             name: payload.full_name,
-//             avatar: payload.student_assets[0].dataValues.url,
-//             email: payload.email,
-//             phone: payload.phone,
-//           });
-//         } else if (user.type === "teacher") {
-//           if (file) {
-//             const asset = await Asset.findOne({
-//               where: { teacher_id: user.id, type: "avatar" },
-//               as: "techer_assets",
-//             });
+      const asset = await Asset.findOne({
+        where: { user_id: user.id },
+      });
+      payload = Object.freeze({
+        id: user.id,
+        nama: user.nama,
+        email: user.email,
+        no_telp: user.no_telp,
+        avatar: asset ? asset.url : null,
+      });
 
-//             if (asset) {
-//               if (asset.path) {
-//                 fs.unlinkSync(asset.path);
-//               }
-//               await asset.update({
-//                 url: urlPath,
-//                 path: filePath,
-//                 filename: file.filename,
-//               });
-//             } else {
-//               await Asset.create({
-//                 url: urlPath,
-//                 path: filePath,
-//                 filename: file.filename,
-//                 type: "avatar",
-//                 teacher_id: user.id,
-//               });
-//             }
-//           }
+      return res
+        .status(200)
+        .json(response(200, "Berhasil Update Profile", payload));
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(500)
+        .json(response(500, "Internal Server Error!", error));
+    }
+  });
+});
 
-//           await Teacher.update(
-//             {
-//               full_name: name,
-//               phone: phone.trim(),
-//             },
-//             { where: { id: user.id } }
-//           );
+router.get(
+  "/google",
+  passport.authenticate("google", {
+    scope: [
+      "https://www.googleapis.com/auth/plus.login",
+      "https://www.googleapis.com/auth/userinfo.email",
+    ],
+  })
+);
 
-//           payload = await Teacher.findOne({
-//             where: {
-//               id: user.id,
-//             },
-//             include: {
-//               model: Asset,
-//               as: "teacher_assets",
-//               where: {
-//                 type: "avatar",
-//               },
-//               required: false,
-//             },
-//           });
+router.get(
+  "/google/callback",
+  passport.authenticate("google", {
+    failureRedirect: `${config.clientDomain}/`,
+  }),
+  async function (req, res) {
+    const { user } = req;
+    const token = await getToken({
+      uid: user.id,
+      rememberMe: true,
+    });
+    let getExpToken = await getPayload(token.pure);
 
-//           payload = Object.freeze({
-//             id: payload.id,
-//             name: payload.full_name,
-//             avatar: payload.teacher_assets[0].dataValues.url,
-//             email: payload.email,
-//             phone: payload.phone,
-//           });
-//         }
-
-//         return res
-//           .status(200)
-//           .json(response(200, "Berhasil Update Profile", payload));
-//       } catch (error) {
-//         return res
-//           .status(500)
-//           .json(response(500, "Internal Server Error!", error));
-//       }
-//     });
-//   }
-// );
-
-// router.get(
-//   "/google",
-//   passport.authenticate("google", {
-//     scope: [
-//       "https://www.googleapis.com/auth/plus.login",
-//       "https://www.googleapis.com/auth/userinfo.email",
-//     ],
-//   })
-// );
-
-// router.get(
-//   "/google/callback",
-//   passport.authenticate("google", {
-//     failureRedirect: `${config.clientDomain}/`,
-//   }),
-//   async function (req, res) {
-//     const { user } = req;
-//     const token = await getToken({
-//       uid: user.id,
-//       rememberMe: true,
-//       type: "student",
-//     });
-//     let getExpToken = await getPayload(token.pure);
-//     res.redirect(
-//       url.format({
-//         pathname: `${config.clientDomain}/google-auth`,
-//         query: {
-//           key: token.key,
-//           exp: getExpToken.exp,
-//           id: user.id,
-//           name: user.full_name,
-//           avatar: user.student_assets.length
-//             ? user.student_assets[0].dataValues.url
-//             : null,
-//           phone: user.phone,
-//           email: user.email,
-//           type: "student",
-//         },
-//       })
-//     );
-//   }
-// );
+    res.redirect(
+      url.format({
+        pathname: `${config.clientDomain}/google-auth`,
+        body: {
+          key: token.key,
+          exp: getExpToken.exp,
+          id: user.id,
+          nama: user.nama,
+          email: user.email,
+          no_telp: user.no_telp,
+          avatar: user.digital_assets.length
+            ? user.digital_assets[0].dataValues.url
+            : null,
+        },
+      })
+    );
+  }
+);
 
 module.exports = router;
