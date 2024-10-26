@@ -1,26 +1,15 @@
 const express = require("express");
 const sequelize = require("sequelize");
 const multer = require("multer");
-const fs = require("fs");
 const sharp = require("sharp");
-const { body, query, validationResult } = require("express-validator");
-const passport = require("../utils/passport");
-const url = require("url");
+const { body, validationResult } = require("express-validator");
 const config = require("../../config");
 const {
-  token: {
-    encrypt,
-    getToken,
-    getRegisterToken,
-    checkRegisterToken,
-    getPayload,
-  },
+  token: { encrypt, getToken, getPayload },
   auth: { isAllow },
   response,
 } = require("../utils");
 const { users: User, digital_assets: Asset } = require("../models");
-const { getTokenReset, checkTokenReset } = require("../utils/token");
-const { sendPasswordReset, sendActivationEmail } = require("../utils/emails");
 const Op = sequelize.Op;
 
 const router = express.Router();
@@ -102,22 +91,8 @@ router.post(
           email,
           no_telp,
           password: encrypt(password),
-          provider: "local",
         })
       );
-
-      const registerToken = await getRegisterToken({
-        uid: user.id,
-        for: "register",
-      });
-
-      const tokenUrl = `${config.serverDomain}/auth/confirm-email?token=${registerToken}&email=${user.email}`;
-
-      sendActivationEmail({
-        email: user.email,
-        name: user.nama,
-        tokenUrl,
-      });
 
       const token = await getToken({ uid: user.id });
       let getExpToken = await getPayload(token.pure);
@@ -175,10 +150,6 @@ router.post(
         ? user.digital_assets[0].dataValues.url
         : null;
 
-      if (user.provider === "google") {
-        return res.status(400).json(response(400, "Login dengan Google"));
-      }
-
       const compare = encrypt(password) === user.password;
       if (!compare) {
         return res.status(400).json(response(400, "Password salah!"));
@@ -202,133 +173,6 @@ router.post(
       });
 
       return res.status(200).json(response(200, "Login berhasil", payload));
-    } catch (error) {
-      console.log(error);
-      return res
-        .status(500)
-        .json(response(500, "Internal Server Error!", error));
-    }
-  }
-);
-
-router.post(
-  "/forgot",
-  [
-    body("email", "email tidak boleh kosong")
-      .exists()
-      .bail()
-      .isEmail()
-      .withMessage("email tidak valid"),
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(422).json(response(422, errors.array()));
-    }
-    const { email } = req.body;
-    try {
-      let user;
-      user = await User.findOne({ where: { email } });
-
-      if (!user) {
-        return res
-          .status(400)
-          .json(response(400, "Anda belum terdaftar sebagai user"));
-      }
-
-      const resetPasswordToken = await getTokenReset({
-        uid: user.id,
-        for: "reset",
-      });
-      if (!resetPasswordToken) {
-        return res.status(500).json(response(500, "Internal Server Error!"));
-      }
-
-      const tokenUrl = `${config.clientDomain}/reset-password?token=${resetPasswordToken}&email=${user.email}`;
-
-      // sendPasswordReset({
-      //   email: user.email,
-      //   name: user.full_name,
-      //   tokenUrl,
-      // });
-
-      return res
-        .status(200)
-        .json(
-          response(
-            200,
-            "Silahkan check email anda untuk reset password",
-            tokenUrl
-          )
-        );
-    } catch (error) {
-      return res
-        .status(500)
-        .json(response(500, "Internal Server Error!", error));
-    }
-  }
-);
-
-router.post(
-  "/reset",
-  [
-    body("token", "token tidak boleh kosong").exists(),
-    body("email", "email tidak boleh kosong").exists(),
-    body("new_password", "passowrd baru tidak boleh kosong").exists(),
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(422).json(response(422, errors.array()));
-    }
-
-    const { token, new_password, email } = req.body;
-
-    try {
-      let user;
-      user = await User.findOne({
-        where: { email },
-        include: {
-          model: Asset,
-          required: false,
-        },
-      });
-
-      if (!user) {
-        return res.status(400).json(response(400, "User tidak ditemukan!"));
-      }
-
-      const verifyToken = await checkTokenReset(token.replace(/ /g, "+"));
-      if (!verifyToken) {
-        return res.status(400).json(response(400, "Token tidak sesuai!"));
-      }
-
-      await user.update({ password: encrypt(new_password) });
-
-      let avatar = user.digital_assets.length
-        ? user.digital_assets[0].dataValues.url
-        : null;
-
-      const loginToken = await getToken({
-        uid: user.id,
-        rememberMe: true,
-      });
-      let getExpToken = await getPayload(loginToken.pure);
-
-      const payload = Object.freeze({
-        token: { key: loginToken.key, exp: getExpToken.exp },
-        user: {
-          id: user.id,
-          nama: user.nama,
-          email: user.email,
-          no_telp: user.no_telp,
-          avatar,
-        },
-      });
-
-      return res
-        .status(200)
-        .json(response(200, "Reset password berhasil", payload));
     } catch (error) {
       console.log(error);
       return res
@@ -395,14 +239,11 @@ router.patch("/profile", isAllow, async function (req, res) {
       }
 
       if (file) {
-        const asset = await Asset.findOne({
+        let asset = await Asset.findOne({
           where: { user_id: user.id },
         });
 
         if (asset) {
-          if (asset.path) {
-            fs.unlinkSync(asset.path);
-          }
           await asset.update({
             url: urlPath,
             path: filePath,
@@ -418,7 +259,7 @@ router.patch("/profile", isAllow, async function (req, res) {
         }
       }
 
-      const asset = await Asset.findOne({
+      asset = await Asset.findOne({
         where: { user_id: user.id },
       });
       payload = Object.freeze({
@@ -440,47 +281,5 @@ router.patch("/profile", isAllow, async function (req, res) {
     }
   });
 });
-
-router.get(
-  "/google",
-  passport.authenticate("google", {
-    scope: [
-      "https://www.googleapis.com/auth/plus.login",
-      "https://www.googleapis.com/auth/userinfo.email",
-    ],
-  })
-);
-
-router.get(
-  "/google/callback",
-  passport.authenticate("google", {
-    failureRedirect: `${config.clientDomain}/`,
-  }),
-  async function (req, res) {
-    const { user } = req;
-    const token = await getToken({
-      uid: user.id,
-      rememberMe: true,
-    });
-    let getExpToken = await getPayload(token.pure);
-
-    res.redirect(
-      url.format({
-        pathname: `${config.clientDomain}/google-auth`,
-        body: {
-          key: token.key,
-          exp: getExpToken.exp,
-          id: user.id,
-          nama: user.nama,
-          email: user.email,
-          no_telp: user.no_telp,
-          avatar: user.digital_assets.length
-            ? user.digital_assets[0].dataValues.url
-            : null,
-        },
-      })
-    );
-  }
-);
 
 module.exports = router;
