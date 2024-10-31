@@ -1,8 +1,8 @@
 const config = require('./config.global');
 config.documents = 'public/documents';
 config.uploads = 'public/uploads';
-config.serverDomain = 'https://e-agenda.io';
-config.clientDomain = 'https://e-agenda.io';
+config.serverDomain = 'https://e-agenda.online';
+config.clientDomain = 'https://e-agenda.online';
 config.host = 'http://localhost';
 config.port = 3000;
 config.googleId = process.env.PROD_GOOGLE_ID;

@@ -121,7 +121,11 @@ router.post(
 router.post(
   "/login",
   [
-    body("email", "email tidak boleh kosong").exists(),
+    body("email", "email tidak boleh kosong")
+      .exists()
+      .bail()
+      .isEmail()
+      .withMessage("Email tidak Valid"),
     body("password", "password tidak boleh kosong").exists(),
   ],
   async (req, res) => {
@@ -144,7 +148,7 @@ router.post(
       });
 
       if (!user) {
-        return res.status(400).json(response(400, "User not found!"));
+        return res.status(400).json(response(400, "User tidak ditemukan!"));
       }
       let avatar = user.digital_assets.length
         ? user.digital_assets[0].dataValues.url
