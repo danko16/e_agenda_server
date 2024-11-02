@@ -72,7 +72,7 @@ router.post(
       return res.status(422).json(response(422, errors.array()));
     }
 
-    const { nama, email, no_telp, password } = req.body;
+    const { nama, email, password } = req.body;
     try {
       let user;
       user = await User.findOne({
@@ -89,21 +89,19 @@ router.post(
         Object.freeze({
           nama,
           email,
-          no_telp,
           password: encrypt(password),
         })
       );
 
       const token = await getToken({ uid: user.id });
-      let getExpToken = await getPayload(token.pure);
 
       const payload = Object.freeze({
-        token: { key: token.key, exp: getExpToken.exp },
+        token,
         user: {
           id: user.id,
           nama: user.nama,
           email: user.email,
-          no_telp: user.no_telp,
+          no_telp: null,
           avatar: null,
         },
       });
@@ -163,10 +161,9 @@ router.post(
         uid: user.id,
         rememberMe: remember_me,
       });
-      let getExpToken = await getPayload(token.pure);
 
       const payload = Object.freeze({
-        token: { key: token.key, exp: getExpToken.exp },
+        token,
         user: {
           id: user.id,
           nama: user.nama,

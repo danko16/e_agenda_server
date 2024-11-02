@@ -1,6 +1,4 @@
 const jwt = require("jsonwebtoken");
-const CryptoJS = require("crypto-js");
-const aes = require("crypto-js/aes");
 const { users: User } = require("../models");
 const config = require("../../config");
 
@@ -15,10 +13,9 @@ const isAllow = async (req, res, next) => {
     token = token.split(" ")[1];
     if (!token)
       return res.status(401).json({ status: 401, message: "Invalid Token!" });
-    let decrypted = aes.decrypt(token, config.aessecret);
 
     const decoded = await jwt.verify(
-      decrypted.toString(CryptoJS.enc.Utf8),
+      token,
       config.jwtsecret
     );
 
