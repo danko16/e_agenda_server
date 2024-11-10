@@ -160,8 +160,8 @@ router.patch(
   }
 );
 
-router.delete(
-  "/",
+router.post(
+  "/delete",
   isAllow,
   [body("id_kegiatan", "ID Kegiatan Tidak Boleh Kosong").exists()],
   async (req, res) => {

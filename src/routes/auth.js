@@ -183,7 +183,7 @@ router.post(
   }
 );
 
-router.patch("/profile", isAllow, async function (req, res) {
+router.post("/profile", isAllow, async function (req, res) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(422).json(response(422, errors.array()));
@@ -224,7 +224,7 @@ router.patch("/profile", isAllow, async function (req, res) {
       }
 
       if (body.password) {
-        await user.update({ password: encrypt(new_password) });
+        await user.update({ password: encrypt(body.password) });
       }
 
       if (file) {
