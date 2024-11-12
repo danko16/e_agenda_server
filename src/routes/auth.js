@@ -11,6 +11,8 @@ const {
 } = require("../utils");
 const { users: User, digital_assets: Asset } = require("../models");
 const Op = sequelize.Op;
+const fs = require('fs');
+const path = require('path');
 
 const router = express.Router();
 
@@ -227,6 +229,10 @@ router.post("/profile", isAllow, async function (req, res) {
         await user.update({ password: encrypt(body.password) });
       }
 
+      let asset = await Asset.findOne({
+        where: { user_id: user.id },
+      });
+
       if (file) {
         servePath = `uploads/${file.filename}`;
         filePath = `${file.destination}/${file.filename}`;
@@ -234,31 +240,37 @@ router.post("/profile", isAllow, async function (req, res) {
 
         const sharpFile = await sharp(filePath).toBuffer();
 
-        sharp(sharpFile)
+        await sharp(sharpFile)
           .resize(245, 245)
           .toFile(filePath, (err, info) => {});
-      }
-
-      if (file) {
-        let asset = await Asset.findOne({
-          where: { user_id: user.id },
-        });
 
         if (asset) {
-          await asset.update({
+          const lastPath = asset.path;
+          asset = await asset.update({
             url: urlPath,
             path: filePath,
             filename: file.filename,
+          });
+          const lastfilePath = path.join(__dirname, '../../' + lastPath);
+
+          await fs.unlink(lastfilePath, (err) => {
+              if (err) {
+                  console.error('Failed to delete file:', err);
+              } else {
+                  console.log('File deleted successfully');
+              }
           });
         } else {
-          await Asset.create({
-            url: urlPath,
-            path: filePath,
-            filename: file.filename,
-            user_id: user.id,
+            await Asset.create({
+              url: urlPath,
+              path: filePath,
+              filename: file.filename,
+              user_id: user.id,
           });
         }
-      }
+
+        sharp.cache(false);
+    }
 
       asset = await Asset.findOne({
         where: { user_id: user.id },
